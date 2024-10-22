@@ -1,0 +1,10 @@
+
+# gnu_gg_plot
+
+grammar of graphics on the command line
+
+## Gnuplot
+
+- install Gnuplot - http://www.gnuplot.info/  
+
+- install an x server. E.g., see: https://askubuntu.com/questions/948830/gnuplot-display-on-bash-on-ubuntu-on-windows-10
