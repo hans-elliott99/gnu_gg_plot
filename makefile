@@ -1,14 +1,9 @@
 
+SRC=main.cpp
 
 
-
-main: main.o
-	gcc -o main main.o
-
-main.o: main.c
-	gcc -c main.c
-
-
+main:
+	g++ -std=c++17 -pipe -g -Wall -Wextra -Wpedantic -o main $(SRC) 
 
 clean:
-	rm -f main main.o
+	rm main
