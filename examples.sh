@@ -60,6 +60,14 @@
     --labs -x "x" -y "y" --title "Bar Plot" \
     --theme --legend_position "bottom" --legend_direction "horizontal"
 
+# extra: using csv data, alpha channel
+./main \
+    -G ./data/test.csv --sep ',' \
+    -L '' -x x -y y --linewidth 3 -c "black" \
+    -P '' -x x -y y --shape 7 --size 2 -c "#88000000"
+    # .....................................#AARRGGBB (alpha, red, green, blue)
+
+
 # TODO:
 # need to add support for specifying variables for aesthetics...
 #

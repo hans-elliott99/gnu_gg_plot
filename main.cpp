@@ -115,6 +115,7 @@ std::vector<std::string> parse_data(const std::string& data_str) {
 // base class
 class Layer {
     private:
+        bool composed = false;
         bool inline_data = false;
         std::vector<std::string> x;
         std::vector<std::string> y;
@@ -176,21 +177,36 @@ class Layer {
         Layer(Environment& global, Environment& local)
             : global(global), local(local) {}
 
-        // make all updates to shared objects
+        // compose the layer based on the current global and local states
         void compose() {
+            // make all updates to shared objects
             _update_globals();
             _update_locals();
+            // make all updates to local objects
             _set_setters();
             _set_plotcmd();
             _set_inline_data();
+            composed = true;
         }
         std::string get_set_line() {
+            if (!composed) {
+                std::cerr << "Error: layer not composed, cannot get set line\n";
+                return "";
+            }
             return set_command;
         }
         std::string get_plot_line() {
+            if (!composed) {
+                std::cerr << "Error: layer not composed, cannot get plot line\n";
+                return "";
+            }
             return plot_command;
         }
-        std::string str_from_inline_data() {
+        std::string get_inline_data() {
+            if (!composed) {
+                std::cerr << "Error: layer not composed, cannot get inline data\n";
+                return "";
+            }
             std::string result = "";
             if (inline_data) {
                 size_t y_size = y.size();
@@ -237,17 +253,14 @@ class BaseLayer : public Layer {
             _fill_global("y_data", gd_y_data);
             _fill_global("color", gd_color);
             _fill_global("shape", gd_shape);
-            return;
         };
         void _update_locals() override {
-            // global layer doesn't need to update any local settings
             return;
         };
         void _set_setters() override {
             set_command += "set datafile separator '" + global["file_delim"] + "'\n";
         };
         void _set_plotcmd() override {
-            // global layer doesn't set any plot commands
             return;
         };
 };
@@ -317,7 +330,7 @@ class ThemeLayer : public Layer {
             set_command += "set key " + leg + "\n";
         }
         void _set_plotcmd() override {
-            return; // n/a
+            return;
         }
 };
 
@@ -334,7 +347,6 @@ class PointLayer : public Layer {
     public:
         using Layer::Layer;
         void _update_globals() override {
-            // point layer doesn't need to update any global settings
             return;
         }
         void _update_locals() override {
@@ -347,7 +359,6 @@ class PointLayer : public Layer {
             _fill_local("label", d_label);
         }
         void _set_setters() override {
-            // point layer doesn't set any global settings
             return;
         }
         void _set_plotcmd() override {
@@ -377,7 +388,6 @@ class LineLayer : public Layer {
     public:
         using Layer::Layer;
         void _update_globals() override {
-            // line layer doesn't need to update any global settings
             return;
         }
         void _update_locals() override {
@@ -390,7 +400,6 @@ class LineLayer : public Layer {
             _fill_local("label", d_label);
         }
         void _set_setters() override {
-            // line layer doesn't set any global settings
             return;
         }
         void _set_plotcmd() override {
@@ -473,10 +482,10 @@ int add_layer(std::vector<std::shared_ptr<Layer>>& layers,
     case 'B':
         layer_ptr.reset(new BarLayer(global, local));
         break;
-    case 300:
+    case 500:
         layer_ptr.reset(new LabsLayer(global, local));
         break;
-    case 400:
+    case 600:
         layer_ptr.reset(new ThemeLayer(global, local));
         break;
     default:
@@ -508,26 +517,27 @@ int main(int argc, char* argv[]) {
     // good reference: https://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
     static struct option long_options[] = {
         {"global",    required_argument, 0, 'G'},  // gg ggplot()
+        {"sep",       required_argument, 0, 300},  // data file separator - e.g., " " or ","
         {"point",     required_argument, 0, 'P'},  // gg geom_point()
         {"line",      required_argument, 0, 'L'},  // gg geom_line()
         {"bar",       required_argument, 0, 'B'},  // gg geom_bar()
         {"color",     required_argument, 0, 'c'},  // gn linecolor
         {"fill",      required_argument, 0, 'c'},  // gn color, ggplot fill is same as color in gnuplot
         {"shape",     required_argument, 0, 's'},  // gn pointtype
-        {"size",      required_argument, 0, 'z'},  // gn pointsize
+        {"size",      required_argument, 0, 'm'},  // gn pointsize
         {"linetype",  required_argument, 0, 't'},  // gn linetype
         {"linewidth", required_argument, 0, 'w'},  // gn linewidth
         {"fillstyle", required_argument, 0, 'f'},  // gn fillstyle, no ggplot equiv
         {"width",     required_argument, 0, 'w'},  // gg width
         {"label",     required_argument, 0, 'l'},  // gg label (for legend)
-        {"labs",      no_argument,       0, 300},  // gg labs()
-        {"title",     required_argument, 0, 301},  // gg title()
-        {"theme",     no_argument,       0, 400},  // gg theme()
-        {"legend_position", required_argument, 0, 401},  // gg theme(legend.position)
-        {"legend_direction",required_argument, 0, 402},  // gg theme(legend.direction)
+        {"labs",      no_argument,       0, 500},  // gg labs()
+        {"title",     required_argument, 0, 501},  // gg title()
+        {"theme",     no_argument,       0, 600},  // gg theme()
+        {"legend_position", required_argument, 0, 601},  // gg theme(legend.position)
+        {"legend_direction",required_argument, 0, 602},  // gg theme(legend.direction)
         {0, 0, 0, 0}
     };
-    const char* short_options = "G:P:L:B:x:y:c:s:";
+    const char* short_options = "G:P:L:B:x:y:c:s:m:t:w:f:l:";
 
     int layer_count = 0;
     int opt_ix = 0;
@@ -540,8 +550,8 @@ int main(int argc, char* argv[]) {
             case 'P':
             case 'L':
             case 'B':
-            case 300: // labs
-            case 400: // theme
+            case 500: // labs
+            case 600: // theme
                 if (opt == 'G' && layer_count > 0) {
                     std::cerr << "Error: if global layer (--global,-G) is used, it should be set first\n";
                     return EXIT_FAILURE;
@@ -554,7 +564,7 @@ int main(int argc, char* argv[]) {
                     // reset local env for each new layer
                     local = Environment();
                 }
-                if (opt < 300) {
+                if (opt < 500) {
                     // required arg for geom layers only
                     local.insert("file", optarg);
                 }
@@ -562,14 +572,14 @@ int main(int argc, char* argv[]) {
                 layer_count++;
                 break;
             case 'x':
-                if (current_geom == 300) {
+                if (current_geom == 500) {
                     local.insert("xlab", optarg);
                 } else {
                     local.insert("x_data", optarg);
                 }
                 break;
             case 'y':
-                if (current_geom == 300) {
+                if (current_geom == 500) {
                     local.insert("ylab", optarg);
                 } else {
                     local.insert("y_data", optarg);
@@ -581,7 +591,7 @@ int main(int argc, char* argv[]) {
             case 's':
                 local.insert("shape", optarg);
                 break;
-            case 'z':
+            case 'm':
                 local.insert("size", optarg);
                 break;
             case 't':
@@ -600,13 +610,16 @@ int main(int argc, char* argv[]) {
             case 'l':
                 local.insert("label", optarg);
                 break;
-            case 301:
+            case 300:
+                local.insert("file_delim", optarg);
+                break;
+            case 501:
                 local.insert("title", optarg);
                 break;
-            case 401:
+            case 601:
                 local.insert("legend_position", optarg);
                 break;
-            case 402:
+            case 602:
                 local.insert("legend_direction", optarg);
                 break;
             default:
@@ -631,7 +644,7 @@ int main(int argc, char* argv[]) {
         if (line != "") {
             plot_lines += line + ",";
         } 
-        data_lines += layer->str_from_inline_data();
+        data_lines += layer->get_inline_data();
         layer_count++;
     }
     // print items in global env
